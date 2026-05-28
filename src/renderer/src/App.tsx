@@ -1,4 +1,5 @@
 import { PointerEvent, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorkerUrl from './pdfWorkerEntry?worker&url'
 import {
@@ -187,6 +188,7 @@ export default function App(): JSX.Element {
                   width={pageWidth}
                   strokes={strokeState.strokes.filter((stroke) => stroke.pageNumber === pageNumber)}
                   tool={tool}
+                  scrollContainerRef={scrollRef}
                   onStrokeComplete={(stroke) => dispatch({ type: 'addStroke', stroke })}
                   onEraseStrokes={(strokeIds) => dispatch({ type: 'eraseStrokes', strokeIds })}
                   onPointerStats={setPointerStats}
@@ -213,6 +215,7 @@ type PdfPageViewProps = {
   width: number
   strokes: Stroke[]
   tool: Tool
+  scrollContainerRef: RefObject<HTMLDivElement | null>
   onStrokeComplete: (stroke: Stroke) => void
   onEraseStrokes: (strokeIds: string[]) => void
   onPointerStats: (stats: PointerStats) => void
@@ -226,6 +229,7 @@ function PdfPageView({
   width,
   strokes,
   tool,
+  scrollContainerRef,
   onStrokeComplete,
   onEraseStrokes,
   onPointerStats,
@@ -235,6 +239,13 @@ function PdfPageView({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const activeStrokeRef = useRef<StrokePoint[]>([])
   const erasedStrokeIdsRef = useRef<Set<string>>(new Set())
+  const activeTouchDragRef = useRef<{
+    pointerId: number
+    startClientX: number
+    startClientY: number
+    startScrollTop: number
+    startScrollLeft: number
+  } | null>(null)
   const [page, setPage] = useState<PdfPage | null>(null)
   const [draftStroke, setDraftStroke] = useState<StrokePoint[]>([])
   const [viewportSize, setViewportSize] = useState<PdfViewport | null>(null)
@@ -342,6 +353,26 @@ function PdfPageView({
   }
 
   function handlePointerDown(event: PointerEvent<SVGSVGElement>): void {
+    if (event.pointerType === 'touch') {
+      updateDiagnostics(event)
+      event.currentTarget.setPointerCapture(event.pointerId)
+      event.preventDefault()
+
+      const scrollContainer = scrollContainerRef.current
+
+      if (scrollContainer) {
+        activeTouchDragRef.current = {
+          pointerId: event.pointerId,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+          startScrollTop: scrollContainer.scrollTop,
+          startScrollLeft: scrollContainer.scrollLeft
+        }
+      }
+
+      return
+    }
+
     if (!isDrawablePointer(event)) {
       return
     }
@@ -363,6 +394,26 @@ function PdfPageView({
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
+    if (event.pointerType === 'touch') {
+      updateDiagnostics(event)
+
+      const dragState = activeTouchDragRef.current
+      const scrollContainer = scrollContainerRef.current
+
+      if (
+        dragState &&
+        scrollContainer &&
+        dragState.pointerId === event.pointerId &&
+        event.currentTarget.hasPointerCapture(event.pointerId)
+      ) {
+        event.preventDefault()
+        scrollContainer.scrollTop = dragState.startScrollTop - (event.clientY - dragState.startClientY)
+        scrollContainer.scrollLeft = dragState.startScrollLeft - (event.clientX - dragState.startClientX)
+      }
+
+      return
+    }
+
     if (!isDrawablePointer(event) || event.buttons === 0) {
       return
     }
@@ -383,6 +434,16 @@ function PdfPageView({
   function handlePointerUp(event: PointerEvent<SVGSVGElement>): void {
     updateDiagnostics(event)
     event.preventDefault()
+
+    if (event.pointerType === 'touch') {
+      activeTouchDragRef.current = null
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+
+      return
+    }
 
     if (tool === 'pen') {
       const points = activeStrokeRef.current
