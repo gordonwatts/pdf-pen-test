@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "./out",
+    "rootDir": "./src",
+    "lib": ["ES2022", "DOM"],
+    "sourceMap": true,
+    "declaration": false,
+    "composite": false,
+    "skipLibCheck": true
+  },
+  "include": ["src/main/**/*.ts", "src/preload/**/*.ts"]
+}

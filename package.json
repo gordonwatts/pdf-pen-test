@@ -1,0 +1,35 @@
+{
+  "name": "indico-pen-spike",
+  "version": "0.0.0",
+  "description": "Throwaway Electron PDF pen behavior spike",
+  "main": "./out/main/index.js",
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run typecheck && node scripts/build.mjs",
+    "preview": "vite preview --outDir out/renderer",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.1.1",
+    "esbuild": "^0.25.12",
+    "pdfjs-dist": "^5.4.394",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "electron": "^39.2.7",
+    "jsdom": "^27.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.4",
+    "vitest": "^4.0.14"
+  }
+}
