@@ -1,5 +1,3 @@
-export type Tool = 'pen' | 'eraser'
-
 export type StrokePoint = {
   x: number
   y: number

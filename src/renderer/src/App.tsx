@@ -3,12 +3,19 @@ import type { RefObject } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import pdfWorkerUrl from './pdfWorkerEntry?worker&url'
 import {
+  pressureAdjustedWidth,
+  resolveCursorMode,
+  resolveInkMode,
+  segmentHitPadding,
+  segmentWidthForPoints,
+  type CursorMode
+} from './inkInteraction'
+import {
   initialStrokeState,
   makeStrokeId,
   Stroke,
   strokeReducer,
   StrokePoint,
-  Tool
 } from './strokeState'
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
@@ -49,7 +56,7 @@ export default function App(): JSX.Element {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [renderedPages, setRenderedPages] = useState<number[]>([])
-  const [tool, setTool] = useState<Tool>('pen')
+  const [cursorMode, setCursorMode] = useState<CursorMode>('mouse')
   const [containerWidth, setContainerWidth] = useState(900)
   const [pointerStats, setPointerStats] = useState<PointerStats | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -123,23 +130,9 @@ export default function App(): JSX.Element {
           <button className="primary-button" type="button" onClick={openPdf} disabled={isLoading}>
             Open PDF
           </button>
-          <div className="segmented-control" aria-label="Drawing tool">
-            <button
-              type="button"
-              className={tool === 'pen' ? 'active' : ''}
-              aria-pressed={tool === 'pen'}
-              onClick={() => setTool('pen')}
-            >
-              Pen
-            </button>
-            <button
-              type="button"
-              className={tool === 'eraser' ? 'active' : ''}
-              aria-pressed={tool === 'eraser'}
-              onClick={() => setTool('eraser')}
-            >
-              Eraser
-            </button>
+          <div className={`mode-badge ${cursorMode}`} aria-live="polite">
+            <span className="mode-badge-icon" aria-hidden="true" />
+            <span>{cursorMode === 'mouse' ? 'Mouse' : cursorMode === 'pen' ? 'Pen' : 'Eraser'}</span>
           </div>
           <button
             type="button"
@@ -187,11 +180,12 @@ export default function App(): JSX.Element {
                   pageNumber={pageNumber}
                   width={pageWidth}
                   strokes={strokeState.strokes.filter((stroke) => stroke.pageNumber === pageNumber)}
-                  tool={tool}
+                  cursorMode={cursorMode}
                   scrollContainerRef={scrollRef}
                   onStrokeComplete={(stroke) => dispatch({ type: 'addStroke', stroke })}
                   onEraseStrokes={(strokeIds) => dispatch({ type: 'eraseStrokes', strokeIds })}
                   onPointerStats={setPointerStats}
+                  onCursorModeChange={setCursorMode}
                   onRendered={handlePageRendered}
                   onRenderError={handleRenderError}
                 />
@@ -214,11 +208,12 @@ type PdfPageViewProps = {
   pageNumber: number
   width: number
   strokes: Stroke[]
-  tool: Tool
+  cursorMode: CursorMode
   scrollContainerRef: RefObject<HTMLDivElement | null>
   onStrokeComplete: (stroke: Stroke) => void
   onEraseStrokes: (strokeIds: string[]) => void
   onPointerStats: (stats: PointerStats) => void
+  onCursorModeChange: (mode: CursorMode) => void
   onRendered: (pageNumber: number) => void
   onRenderError: (message: string) => void
 }
@@ -228,11 +223,12 @@ function PdfPageView({
   pageNumber,
   width,
   strokes,
-  tool,
+  cursorMode,
   scrollContainerRef,
   onStrokeComplete,
   onEraseStrokes,
   onPointerStats,
+  onCursorModeChange,
   onRendered,
   onRenderError
 }: PdfPageViewProps): JSX.Element {
@@ -250,6 +246,7 @@ function PdfPageView({
   const [draftStroke, setDraftStroke] = useState<StrokePoint[]>([])
   const [viewportSize, setViewportSize] = useState<PdfViewport | null>(null)
   const [pageStatus, setPageStatus] = useState<'idle' | 'loading' | 'rendering' | 'ready' | 'error'>('idle')
+  const activeInkModeRef = useRef<'pen' | 'eraser' | null>(null)
   const dimensions = viewportSize ?? { width, height: Math.round(width * 1.3) }
 
   useEffect(() => {
@@ -352,6 +349,14 @@ function PdfPageView({
     })
   }
 
+  function updateCursorMode(event: PointerEvent<SVGSVGElement>): void {
+    onCursorModeChange(resolveCursorMode(event))
+  }
+
+  function getActiveInkMode(event: PointerEvent<SVGSVGElement>): 'pen' | 'eraser' {
+    return activeInkModeRef.current ?? resolveInkMode(event)
+  }
+
   function handlePointerDown(event: PointerEvent<SVGSVGElement>): void {
     if (event.pointerType === 'touch') {
       updateDiagnostics(event)
@@ -378,12 +383,15 @@ function PdfPageView({
     }
 
     updateDiagnostics(event)
+    updateCursorMode(event)
     event.currentTarget.setPointerCapture(event.pointerId)
     event.preventDefault()
 
     const point = pointFromEvent(event)
+    const activeInkMode = resolveInkMode(event)
+    activeInkModeRef.current = activeInkMode
 
-    if (tool === 'pen') {
+    if (activeInkMode === 'pen') {
       activeStrokeRef.current = [point]
       setDraftStroke([point])
       return
@@ -393,7 +401,20 @@ function PdfPageView({
     collectEraserHits(point)
   }
 
+  function handlePointerEnter(event: PointerEvent<SVGSVGElement>): void {
+    if (event.pointerType === 'touch') {
+      return
+    }
+
+    updateDiagnostics(event)
+    updateCursorMode(event)
+  }
+
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
+    if (event.pointerType !== 'touch') {
+      updateCursorMode(event)
+    }
+
     if (event.pointerType === 'touch') {
       updateDiagnostics(event)
 
@@ -421,8 +442,9 @@ function PdfPageView({
     updateDiagnostics(event)
     event.preventDefault()
     const point = pointFromEvent(event)
+    const activeInkMode = getActiveInkMode(event)
 
-    if (tool === 'pen') {
+    if (activeInkMode === 'pen') {
       activeStrokeRef.current = [...activeStrokeRef.current, point]
       setDraftStroke(activeStrokeRef.current)
       return
@@ -433,6 +455,9 @@ function PdfPageView({
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>): void {
     updateDiagnostics(event)
+    if (event.pointerType !== 'touch') {
+      updateCursorMode(event)
+    }
     event.preventDefault()
 
     if (event.pointerType === 'touch') {
@@ -445,10 +470,13 @@ function PdfPageView({
       return
     }
 
-    if (tool === 'pen') {
+    const activeInkMode = getActiveInkMode(event)
+
+    if (activeInkMode === 'pen') {
       const points = activeStrokeRef.current
       activeStrokeRef.current = []
       setDraftStroke([])
+      activeInkModeRef.current = null
 
       if (points.length >= 2) {
         onStrokeComplete({
@@ -461,6 +489,7 @@ function PdfPageView({
     } else {
       const strokeIds = Array.from(erasedStrokeIdsRef.current)
       erasedStrokeIdsRef.current = new Set()
+      activeInkModeRef.current = null
 
       if (strokeIds.length > 0) {
         onEraseStrokes(strokeIds)
@@ -488,25 +517,21 @@ function PdfPageView({
     <article className="pdf-page" style={{ width: dimensions.width, height: dimensions.height }}>
       <canvas ref={canvasRef} className="pdf-canvas" />
       <svg
-        className={`ink-layer ${tool}`}
-        width={dimensions.width}
-        height={dimensions.height}
-        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
+        className={`ink-layer ${cursorMode}`}
+      width={dimensions.width}
+      height={dimensions.height}
+      viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+      onPointerEnter={handlePointerEnter}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
         {strokes.map((stroke) => (
-          <polyline
-            key={stroke.id}
-            className="stroke"
-            points={toPolylinePoints(stroke.points, dimensions)}
-            strokeWidth={stroke.width}
-          />
+          <StrokeView key={stroke.id} stroke={stroke} dimensions={dimensions} />
         ))}
         {draftStroke.length > 1 ? (
-          <polyline className="stroke draft" points={toPolylinePoints(draftStroke, dimensions)} strokeWidth={penWidth} />
+          <DraftStrokeView stroke={draftStroke} dimensions={dimensions} />
         ) : null}
       </svg>
       <div className="page-number">Page {pageNumber}</div>
@@ -519,8 +544,66 @@ function isDrawablePointer(event: PointerEvent<SVGSVGElement>): boolean {
   return event.pointerType === 'pen' || event.pointerType === 'mouse' || event.pointerType === ''
 }
 
-function toPolylinePoints(points: StrokePoint[], size: { width: number; height: number }): string {
-  return points.map((point) => `${point.x * size.width},${point.y * size.height}`).join(' ')
+function StrokeView({
+  stroke,
+  dimensions
+}: {
+  stroke: Stroke
+  dimensions: { width: number; height: number }
+}): JSX.Element | null {
+  if (stroke.points.length < 2) {
+    return null
+  }
+
+  return (
+    <g>
+      {stroke.points.slice(1).map((point, index) => {
+        const start = stroke.points[index]
+        return (
+          <line
+            key={`${stroke.id}-${start.time}-${point.time}`}
+            className="stroke"
+            x1={start.x * dimensions.width}
+            y1={start.y * dimensions.height}
+            x2={point.x * dimensions.width}
+            y2={point.y * dimensions.height}
+            strokeWidth={segmentWidthForPoints(start, point, stroke.width)}
+          />
+        )
+      })}
+    </g>
+  )
+}
+
+function DraftStrokeView({
+  stroke,
+  dimensions
+}: {
+  stroke: StrokePoint[]
+  dimensions: { width: number; height: number }
+}): JSX.Element | null {
+  if (stroke.length < 2) {
+    return null
+  }
+
+  return (
+    <g className="draft-stroke">
+      {stroke.slice(1).map((point, index) => {
+        const start = stroke[index]
+        return (
+          <line
+            key={`${start.time}-${point.time}`}
+            className="stroke draft"
+            x1={start.x * dimensions.width}
+            y1={start.y * dimensions.height}
+            x2={point.x * dimensions.width}
+            y2={point.y * dimensions.height}
+            strokeWidth={pressureAdjustedWidth(penWidth, (start.pressure + point.pressure) / 2)}
+          />
+        )
+      })}
+    </g>
+  )
 }
 
 function strokeHitTest(
@@ -539,7 +622,10 @@ function strokeHitTest(
     const start = { x: stroke.points[index - 1].x * size.width, y: stroke.points[index - 1].y * size.height }
     const end = { x: stroke.points[index].x * size.width, y: stroke.points[index].y * size.height }
 
-    if (distanceToSegment(target, start, end) <= radius) {
+    if (
+      distanceToSegment(target, start, end) <=
+      segmentHitPadding(stroke.points[index - 1], stroke.points[index], stroke.width, radius)
+    ) {
       return true
     }
   }

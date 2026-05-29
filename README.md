@@ -32,4 +32,4 @@ Open a representative PDF, write on several pages, erase strokes, undo and redo,
 - Conference device result:
 - Verdict: acceptable / questionable / rejected
 
-Pressure and hardware eraser detection are diagnostics only. The spike intentionally keeps erasing as a toolbar mode.
+Pressure now slightly widens strokes as pen pressure increases, and the hardware pen eraser auto-switches the app into erase mode while updating the cursor and toolbar badge.
