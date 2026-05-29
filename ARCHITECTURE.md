@@ -82,7 +82,7 @@ Point shape:
 
 Behavior:
 - pen mode creates strokes from pointer events
-- pen pressure adjusts stroke thickness as points are rendered
+- pen pressure adjusts stroke thickness as points are rendered, scaling up to 50% above the base width
 - the hardware pen eraser is auto-detected from pointer events and removes whole strokes
 - the on-screen cursor reflects mouse, pen tip, or eraser mode directly
 - undo / redo is implemented as a reducer history stack

@@ -32,4 +32,4 @@ Open a representative PDF, write on several pages, erase strokes, undo and redo,
 - Conference device result:
 - Verdict: acceptable / questionable / rejected
 
-Pressure now slightly widens strokes as pen pressure increases, and the hardware pen eraser auto-switches the app into erase mode while updating the cursor and toolbar badge.
+Pressure now widens strokes as pen pressure increases by up to 50%, and the hardware pen eraser auto-switches the app into erase mode while updating the cursor and toolbar badge.

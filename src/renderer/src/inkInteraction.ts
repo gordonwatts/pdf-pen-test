@@ -8,7 +8,7 @@ export type PenPointerEventLike = {
   buttons: number
 }
 
-const pressureBoost = 0.2
+const pressureBoost = 0.5
 
 export function resolveCursorMode(event: PenPointerEventLike): CursorMode {
   if (isPenEraserEvent(event)) {

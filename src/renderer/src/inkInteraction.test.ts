@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { pressureAdjustedWidth, resolveCursorMode, resolveInkMode } from './inkInteraction'
 
 describe('inkInteraction', () => {
-  it('keeps the base width at zero pressure and grows by 20 percent at full pressure', () => {
+  it('keeps the base width at zero pressure and grows by 50 percent at full pressure', () => {
     expect(pressureAdjustedWidth(4, 0)).toBe(4)
-    expect(pressureAdjustedWidth(4, 1)).toBe(4.8)
+    expect(pressureAdjustedWidth(4, 1)).toBe(6)
   })
 
   it('detects the pen eraser from pointer button state', () => {
