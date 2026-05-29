@@ -15,6 +15,8 @@ const electronBinaryPath = join(
       ? join('Electron.app', 'Contents', 'MacOS', 'Electron')
       : 'electron'
 )
+const builtMainPath = join(root, 'out', 'main', 'index.js')
+const builtRendererPath = join(root, 'out', 'renderer', 'index.html')
 const userDataDir = join(root, 'out', '.electron-user-data')
 
 const fileExists = async (path) => {
@@ -30,7 +32,9 @@ if (!(await fileExists(electronBinaryPath))) {
   throw new Error('Electron is not installed. Run npm install before npm run dev.')
 }
 
-await import('./build.mjs')
+if (!(await fileExists(builtMainPath)) || !(await fileExists(builtRendererPath))) {
+  throw new Error('The app has not been built yet. Run npm install before npm run dev.')
+}
 
 const electronProcess = spawn(
   electronBinaryPath,

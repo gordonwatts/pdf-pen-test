@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-`npm install` primes Electron for this spike. If you skip install and go straight to `npm run dev`, it will fail fast and tell you to install first.
+`npm install` primes Electron and builds the app. If you skip install and go straight to `npm run dev`, it will fail fast and tell you to install first.
 
 ## Verify
 

@@ -136,7 +136,12 @@ const ensureElectronBinary = async () => {
   }
 }
 
-ensureElectronBinary().catch((error) => {
+const main = async () => {
+  await ensureElectronBinary()
+  await import('./build.mjs')
+}
+
+main().catch((error) => {
   console.error(error)
   process.exit(1)
 })
