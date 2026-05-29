@@ -5,6 +5,10 @@ import { readFile } from 'node:fs/promises'
 
 console.log('main process starting')
 
+// Electron on this Windows ARM environment can crash during GPU init.
+app.disableHardwareAcceleration()
+app.commandLine.appendSwitch('disable-gpu')
+
 const isDev = !app.isPackaged
 const __dirname = dirname(fileURLToPath(import.meta.url))
 let mainWindow: BrowserWindow | null = null
