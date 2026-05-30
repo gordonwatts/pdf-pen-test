@@ -398,7 +398,11 @@ function PdfPageView({
     }
 
     erasedStrokeIdsRef.current = new Set()
-    collectEraserHits(point)
+    const strokeIds = collectEraserHits(point)
+
+    if (strokeIds.length > 0) {
+      onEraseStrokes(strokeIds)
+    }
   }
 
   function handlePointerEnter(event: PointerEvent<SVGSVGElement>): void {
@@ -450,7 +454,11 @@ function PdfPageView({
       return
     }
 
-    collectEraserHits(point)
+    const strokeIds = collectEraserHits(point)
+
+    if (strokeIds.length > 0) {
+      onEraseStrokes(strokeIds)
+    }
   }
 
   function handlePointerUp(event: PointerEvent<SVGSVGElement>): void {
@@ -470,9 +478,7 @@ function PdfPageView({
       return
     }
 
-    const activeInkMode = getActiveInkMode(event)
-
-    if (activeInkMode === 'pen') {
+    if (getActiveInkMode(event) === 'pen') {
       const points = activeStrokeRef.current
       activeStrokeRef.current = []
       setDraftStroke([])
@@ -486,22 +492,19 @@ function PdfPageView({
           width: penWidth
         })
       }
-    } else {
-      const strokeIds = Array.from(erasedStrokeIdsRef.current)
-      erasedStrokeIdsRef.current = new Set()
-      activeInkModeRef.current = null
-
-      if (strokeIds.length > 0) {
-        onEraseStrokes(strokeIds)
-      }
     }
+
+    erasedStrokeIdsRef.current = new Set()
+    activeInkModeRef.current = null
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
   }
 
-  function collectEraserHits(point: StrokePoint): void {
+  function collectEraserHits(point: StrokePoint): string[] {
+    const strokeIds: string[] = []
+
     for (const stroke of strokes) {
       if (erasedStrokeIdsRef.current.has(stroke.id)) {
         continue
@@ -509,8 +512,11 @@ function PdfPageView({
 
       if (strokeHitTest(stroke, point, dimensions, eraserRadiusPx)) {
         erasedStrokeIdsRef.current.add(stroke.id)
+        strokeIds.push(stroke.id)
       }
     }
+
+    return strokeIds
   }
 
   return (
@@ -518,13 +524,13 @@ function PdfPageView({
       <canvas ref={canvasRef} className="pdf-canvas" />
       <svg
         className={`ink-layer ${cursorMode}`}
-      width={dimensions.width}
-      height={dimensions.height}
-      viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
-      onPointerEnter={handlePointerEnter}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+        width={dimensions.width}
+        height={dimensions.height}
+        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
+        onPointerEnter={handlePointerEnter}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
       >
         {strokes.map((stroke) => (
